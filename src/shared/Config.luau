@@ -17,6 +17,8 @@ local Config = {
 	MAX_HINT_LENGTH = 24,
 	COINS_PER_WIN = 50,
 	INPUT_THROTTLE = 0.5,
+	CIRCLE_CENTER = Vector3.new(0, 5, 0),
+	CIRCLE_RADIUS = 12,
 }
 
 export type Config = typeof(Config)

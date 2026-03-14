@@ -284,6 +284,27 @@ local states: { StateDefinition } = {
         data.role = if data.player == gameData.imposter then "imposter" else "investigator"
       end
 
+      -- teleport players into a circle facing the center
+      local center: Vector3 = Config.CIRCLE_CENTER
+      local radius: number = Config.CIRCLE_RADIUS
+      local count: number = #active
+
+      for i, data: PlayerData in active do
+        local angle: number = (2 * math.pi * (i - 1)) / count
+        local x: number = center.X + radius * math.cos(angle)
+        local z: number = center.Z + radius * math.sin(angle)
+        local pos: Vector3 = Vector3.new(x, center.Y, z)
+
+        local character: Model? = data.player.Character
+        if character then
+          local root: BasePart? = (character :: Model):FindFirstChild("HumanoidRootPart") :: BasePart?
+          if root then
+            -- face the center
+            (root :: BasePart).CFrame = CFrame.lookAt(pos, Vector3.new(center.X, pos.Y, center.Z))
+          end
+        end
+      end
+
       broadcastState()
       logger.log("success", "selection", {
         theme = gameData.theme :: string,
