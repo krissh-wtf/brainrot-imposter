@@ -1,5 +1,5 @@
 # Project place file
-/guess-my-brainrot.rbxlx
+/brainrot-impostor.rbxlx
 
 # Roblox Studio lock files
 /*.rbxlx.lock
@@ -8,4 +8,5 @@
 sourcemap.json
 
 Packages/
+ServerPackages/
 .vscode/

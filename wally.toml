@@ -8,3 +8,4 @@ realm = "shared"
 iris = "sirmallard/iris@2.5.0"
 
 [server-dependencies]
+profilestore = "krissh-wtf/profilestore@1.0.3"

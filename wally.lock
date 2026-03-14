@@ -5,7 +5,12 @@ registry = "test"
 [[package]]
 name = "krissh-wtf/guess-my-brainrot"
 version = "0.1.0"
-dependencies = [["iris", "sirmallard/iris@2.5.0"]]
+dependencies = [["iris", "sirmallard/iris@2.5.0"], ["profilestore", "krissh-wtf/profilestore@1.0.3"]]
+
+[[package]]
+name = "krissh-wtf/profilestore"
+version = "1.0.3"
+dependencies = []
 
 [[package]]
 name = "sirmallard/iris"
