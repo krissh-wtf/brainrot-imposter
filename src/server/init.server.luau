@@ -1,10 +1,12 @@
+--!strict
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Roches = require(Shared:WaitForChild("Roches"))
+local Shared: Folder = ReplicatedStorage:WaitForChild("Shared") :: Folder
+local ModuleLoader = require(Shared:WaitForChild("ModuleLoader"))
 
 -- create remotes before services boot
 require(Shared:WaitForChild("Remotes"))
 
-local Services = script.Services:GetChildren()
-Roches.launch(Services)
+local services: { Instance } = script.Services:GetChildren()
+ModuleLoader.launch(services)

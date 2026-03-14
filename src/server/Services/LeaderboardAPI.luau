@@ -1,91 +1,127 @@
+--!strict
+
+-- Serves leaderboard data to clients via a RemoteFunction, with caching
+
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Logger = require(ReplicatedStorage.Shared.Logger)
 
-local logger = Logger.new("LeaderboardAPI")
+local logger = Logger.create("LeaderboardAPI")
 
-local maxEntries = 100
-local cacheDuration = 30
+local MAX_ENTRIES: number = 100
+local CACHE_DURATION: number = 30
 
-local orderedStores = {
-  Coins = DataStoreService:GetOrderedDataStore("BRI_LB_Coins_v2"),
-  Wins = DataStoreService:GetOrderedDataStore("BRI_LB_Wins_v2"),
-  TimePlayed = DataStoreService:GetOrderedDataStore("BRI_LB_TimePlayed_v2"),
+type LeaderboardEntry = {
+	rank: number,
+	name: string,
+	value: number,
+	userId: number?,
 }
 
-local cache: { [string]: { data: {}, timestamp: number } } = {}
+type CacheEntry = {
+	data: { LeaderboardEntry },
+	timestamp: number,
+}
 
-local function fetchLeaderboard(statName: string)
-  local cached = cache[statName]
-  if cached and os.clock() - cached.timestamp < cacheDuration then
-    return cached.data
-  end
+local orderedStores: { [string]: OrderedDataStore } = {
+	Coins = DataStoreService:GetOrderedDataStore("BRI_LB_Coins_v2"),
+	Wins = DataStoreService:GetOrderedDataStore("BRI_LB_Wins_v2"),
+	TimePlayed = DataStoreService:GetOrderedDataStore("BRI_LB_TimePlayed_v2"),
+}
 
-  local store = orderedStores[statName]
-  if not store then
-    return {}
-  end
+local cache: { [string]: CacheEntry } = {}
 
-  local ok, pages = pcall(function()
-    return store:GetSortedAsync(false, maxEntries)
-  end)
+local function fetchLeaderboard(statName: string): { LeaderboardEntry }
+	local cached: CacheEntry? = cache[statName]
+	if cached and os.clock() - (cached :: CacheEntry).timestamp < CACHE_DURATION then
+		return (cached :: CacheEntry).data
+	end
 
-  if not ok or not pages then
-    logger:log("error", "fetchLeaderboard", { stat = statName, error = tostring(pages) })
-    return cached and cached.data or {}
-  end
+	local store: OrderedDataStore? = orderedStores[statName]
+	if not store then
+		return {}
+	end
 
-  local entries = {}
+	local ok: boolean, pages: any = pcall(function()
+		return (store :: OrderedDataStore):GetSortedAsync(false, MAX_ENTRIES)
+	end)
 
-  for rank, entry in pages:GetCurrentPage() do
-    local userId = tonumber(entry.key)
-    local playerName = "[???]"
-    -- dcp on prend le nom du joueur si il est en ligne sinon on prend avk GetNameFromUserIdAsync, pr pas avoir les ??? chelou
-    if userId then
-      local onlinePlayer = Players:GetPlayerByUserId(userId)
-      if onlinePlayer then
-        playerName = onlinePlayer.DisplayName
-      else
-        local nameOk, name = pcall(Players.GetNameFromUserIdAsync, Players, userId)
-        if nameOk then
-          playerName = name
-        end
-      end
-    end
+	if not ok or not pages then
+		logger.log("error", "fetchLeaderboard", { stat = statName, error = tostring(pages) })
+		return if cached then (cached :: CacheEntry).data else {}
+	end
 
-    table.insert(entries, {
-      rank = rank,
-      name = playerName,
-      value = entry.value,
-      userId = userId,
-    })
-  end
+	local entries: { LeaderboardEntry } = {}
 
-  cache[statName] = { data = entries, timestamp = os.clock() }
-  return entries
+	for rank: number, entry in pages:GetCurrentPage() do
+		local userId: number? = tonumber(entry.key)
+		local playerName: string = "[???]"
+
+		-- resolve name from online player first, then from API
+		if userId then
+			local onlinePlayer: Player? = Players:GetPlayerByUserId(userId :: number)
+			if onlinePlayer then
+				playerName = (onlinePlayer :: Player).DisplayName
+			else
+				local nameOk: boolean, name: string = pcall(Players.GetNameFromUserIdAsync, Players, userId :: number)
+				if nameOk then
+					playerName = name
+				end
+			end
+		end
+
+		table.insert(entries, {
+			rank = rank,
+			name = playerName,
+			value = entry.value,
+			userId = userId,
+		})
+	end
+
+	cache[statName] = { data = entries, timestamp = os.clock() }
+	return entries
 end
 
-local roche = {
-  context = "once",
+-- module interface
+return {
+	context = "once",
 
-  setup = function()
-    local remote = Instance.new("RemoteFunction")
-    remote.Name = "GetLeaderboardData"
-    remote.Parent = ReplicatedStorage
+	setup = function()
+		local remote: RemoteFunction = Instance.new("RemoteFunction")
+		remote.Name = "GetLeaderboardData"
+		remote.Parent = ReplicatedStorage
 
-    remote.OnServerInvoke = function()
-      local result = {}
-      for statName in orderedStores do
-        result[statName] = fetchLeaderboard(statName)
-      end
-      return result
-    end
+		-- rate limit per player to prevent spam
+		local lastRequest: { [Player]: number } = {}
 
-    logger:log("success", "setup", { status = "ok" })
-  end,
+		remote.OnServerInvoke = function(player: Player): { [string]: { LeaderboardEntry } }
+			local now: number = os.clock()
+			if lastRequest[player] and now - lastRequest[player] < 5 then
+				-- return cached data if spamming
+				local result: { [string]: { LeaderboardEntry } } = {}
+				for statName: string in orderedStores do
+					local cached: CacheEntry? = cache[statName]
+					result[statName] = if cached then (cached :: CacheEntry).data else {}
+				end
+				return result
+			end
+			lastRequest[player] = now
 
-  loop = function() end,
+			local result: { [string]: { LeaderboardEntry } } = {}
+			for statName: string in orderedStores do
+				result[statName] = fetchLeaderboard(statName)
+			end
+			return result
+		end
+
+		-- clean up on player leave
+		Players.PlayerRemoving:Connect(function(player: Player)
+			lastRequest[player] = nil
+		end)
+
+		logger.log("success", "setup", { status = "ok" })
+	end,
+
+	loop = function() end,
 }
-
-return roche

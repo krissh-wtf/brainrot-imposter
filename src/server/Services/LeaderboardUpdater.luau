@@ -1,79 +1,87 @@
--- écrit les stats dans des OrderedDataStore pour le classement global
+--!strict
+
+-- Periodically writes player stats to OrderedDataStores for global leaderboards
+
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Logger = require(ReplicatedStorage.Shared.Logger)
 
-local logger = Logger.new("LeaderboardUpdater")
+local logger = Logger.create("LeaderboardUpdater")
 
-local updateInterval = 60
+local UPDATE_INTERVAL: number = 60
 
--- noms frais pour éviter les anciennes données
-local orderedStores = {
-  Coins = DataStoreService:GetOrderedDataStore("BRI_LB_Coins_v2"),
-  Wins = DataStoreService:GetOrderedDataStore("BRI_LB_Wins_v2"),
-  TimePlayed = DataStoreService:GetOrderedDataStore("BRI_LB_TimePlayed_v2"),
+local orderedStores: { [string]: OrderedDataStore } = {
+	Coins = DataStoreService:GetOrderedDataStore("BRI_LB_Coins_v2"),
+	Wins = DataStoreService:GetOrderedDataStore("BRI_LB_Wins_v2"),
+	TimePlayed = DataStoreService:GetOrderedDataStore("BRI_LB_TimePlayed_v2"),
 }
 
 local function getStatValue(player: Player, statName: string): number?
-  -- Coins et Wins sont dans leaderstats, TimePlayed dans PlayerStats
-  local folder = if statName == "TimePlayed"
-    then player:FindFirstChild("PlayerStats")
-    else player:FindFirstChild("leaderstats")
+	local folder: Instance? = if statName == "TimePlayed"
+		then player:FindFirstChild("PlayerStats")
+		else player:FindFirstChild("leaderstats")
 
-  if not folder then
-    return nil
-  end
+	if not folder then
+		return nil
+	end
 
-  local stat = folder:FindFirstChild(statName)
-  if not stat then
-    return nil
-  end
+	local stat: Instance? = (folder :: Instance):FindFirstChild(statName)
+	if not stat then
+		return nil
+	end
 
-  return stat.Value
+	return (stat :: IntValue).Value
 end
 
 local function updateAll()
-  for _, player in Players:GetPlayers() do
-    local key = tostring(player.UserId)
+	local players = Players:GetPlayers()
+	if #players == 0 then
+		return
+	end
 
-    for statName, store in orderedStores do
-      local value = getStatValue(player, statName)
-      if not value or value <= 0 then
-        continue
-      end
+	for _, player: Player in players do
+		local key: string = tostring(player.UserId)
 
-      local ok, err = pcall(function()
-        store:SetAsync(key, value)
-      end)
+		for statName: string, store: OrderedDataStore in orderedStores do
+			local value: number? = getStatValue(player, statName)
+			if not value or (value :: number) <= 0 then
+				continue
+			end
 
-      if not ok then
-        logger:log("error", "updateAll", {
-          player = player.Name,
-          stat = statName,
-          error = tostring(err),
-        })
-      end
-    end
-  end
+			local ok: boolean, err: string = pcall(function()
+				store:SetAsync(key, value :: number)
+			end)
+
+			if not ok then
+				logger.log("error", "updateAll", {
+					player = player.Name,
+					stat = statName,
+					error = tostring(err),
+				})
+			end
+
+			-- small yield between writes to stay within DataStore rate limits
+			task.wait()
+		end
+	end
 end
 
-local roche = {
-  context = "once",
+-- module interface
+return {
+	context = "once",
 
-  setup = function()
-    task.spawn(function()
-      while true do
-        task.wait(updateInterval)
-        updateAll()
-        logger:log("info", "cycle", { status = "done" })
-      end
-    end)
+	setup = function()
+		task.spawn(function()
+			while true do
+				task.wait(UPDATE_INTERVAL)
+				updateAll()
+				logger.log("info", "cycle", { status = "done" })
+			end
+		end)
 
-    logger:log("success", "setup", { status = "ok" })
-  end,
+		logger.log("success", "setup", { status = "ok" })
+	end,
 
-  loop = function() end,
+	loop = function() end,
 }
-
-return roche
