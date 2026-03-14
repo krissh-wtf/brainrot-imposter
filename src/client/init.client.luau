@@ -1,11 +1,7 @@
---!strict
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ModuleLoader = require(ReplicatedStorage.Shared.ModuleLoader)
 
-local Shared: Folder = ReplicatedStorage:WaitForChild("Shared") :: Folder
-local ModuleLoader = require(Shared:WaitForChild("ModuleLoader"))
+require(ReplicatedStorage.Shared.Remotes)
 
-require(Shared:WaitForChild("Remotes"))
-
-local controllers: { Instance } = script.Controllers:GetChildren()
+local controllers = script.Controllers:GetChildren()
 ModuleLoader.launch(controllers)

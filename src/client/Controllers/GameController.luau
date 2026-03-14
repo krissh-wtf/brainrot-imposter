@@ -3,11 +3,10 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
-local Shared: Folder = ReplicatedStorage:WaitForChild("Shared") :: Folder
-local Types = require(Shared.Types)
-local Config = require(Shared.Config)
-local Remotes = require(Shared.Remotes)
-local Logger = require(Shared.Logger)
+local Config = require(ReplicatedStorage.Shared.Config)
+local Logger = require(ReplicatedStorage.Shared.Logger)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Types = require(ReplicatedStorage.Shared.Types)
 
 type ClientPayload = Types.ClientPayload
 type GameState = Types.GameState
@@ -28,63 +27,63 @@ local currentPayload: ClientPayload? = nil
 local lastInputTime: number = 0
 
 local function onStateChanged(payload: ClientPayload)
-	currentPayload = payload
-	logger.log("info", "onStateChanged", { state = payload.state })
+  currentPayload = payload
+  logger.log("info", "onStateChanged", { state = payload.state })
 end
 
 -- public API for UI scripts
 local GameController = {}
 
 function GameController.submitHint(hint: string)
-	submitHintRemote:FireServer(hint)
+  submitHintRemote:FireServer(hint)
 end
 
 function GameController.castVote(target: Player)
-	castVoteRemote:FireServer(target)
+  castVoteRemote:FireServer(target)
 end
 
 function GameController.skipVote()
-	castVoteRemote:FireServer("skip")
+  castVoteRemote:FireServer("skip")
 end
 
 function GameController.toggleAfk()
-	toggleAfkRemote:FireServer()
+  toggleAfkRemote:FireServer()
 end
 
 function GameController.guessWord(guess: string)
-	guessWordRemote:FireServer(guess)
+  guessWordRemote:FireServer(guess)
 end
 
 function GameController.getPayload(): ClientPayload?
-	return currentPayload
+  return currentPayload
 end
 
 -- module interface
 return {
-	context = "once",
+  context = "once",
 
-	setup = function()
-		stateChanged.OnClientEvent:Connect(onStateChanged)
+  setup = function()
+    stateChanged.OnClientEvent:Connect(onStateChanged)
 
-		-- track input activity for server-side AFK detection (throttled)
-		UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
-			if processed then
-				return
-			end
+    -- track input activity for server-side AFK detection (throttled)
+    UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+      if processed then
+        return
+      end
 
-			local now: number = os.clock()
-			if now - lastInputTime < Config.INPUT_THROTTLE then
-				return
-			end
-			lastInputTime = now
-			playerInputRemote:FireServer()
-		end)
+      local now: number = os.clock()
+      if now - lastInputTime < Config.INPUT_THROTTLE then
+        return
+      end
+      lastInputTime = now
+      playerInputRemote:FireServer()
+    end)
 
-		-- expose controller globally for UI scripts
-		_G.GameController = GameController
+    -- expose controller globally for UI scripts
+    -- _G.GameController = GameController
 
-		logger.log("success", "setup", { status = "ready" })
-	end,
+    logger.log("success", "setup", { status = "ready" })
+  end,
 
-	loop = function() end,
+  loop = function() end,
 }

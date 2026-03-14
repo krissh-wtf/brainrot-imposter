@@ -1,12 +1,9 @@
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ModuleLoader = require(ReplicatedStorage.Shared.ModuleLoader)
 
-local Shared: Folder = ReplicatedStorage:WaitForChild("Shared") :: Folder
-local ModuleLoader = require(Shared:WaitForChild("ModuleLoader"))
+require(ReplicatedStorage.Shared.Remotes)
 
--- create remotes before services boot
-require(Shared:WaitForChild("Remotes"))
-
-local services: { Instance } = script.Services:GetChildren()
+local services = script.Services:GetChildren()
 ModuleLoader.launch(services)
